@@ -1,8 +1,8 @@
 [package]
 name = "soleana"
 version = "0.1.0"
-edition = "2024"
-authors = ["Beta <levbetaq@gmail.com"]
+edition = "2021"
+authors = ["Beta <levbetaq@gmail.com>"]
 description = "Soleana is a lightweight and lightning-fast Solana transaction parser."
 license = "MIT"
 repository = "https://github.com/levbeta/soleana"

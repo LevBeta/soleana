@@ -1,0 +1,24 @@
+[package]
+name = "soleana"
+version = "0.1.0"
+edition = "2024"
+authors = ["Beta <levbetaq@gmail.com"]
+description = "Soleana is a lightweight and lightning-fast Solana transaction parser."
+license = "MIT"
+repository = "https://github.com/levbeta/soleana"
+readme = "README.md"
+keywords = ["solana", "transaction", "parser", "parsing", "blockchain"]
+categories = ["cryptography", "parsing", "blockchain"]
+homepage = "https://github.com/levbeta/soleana"
+
+[dependencies]
+solana-message = "2.4.0"
+solana-sdk = "2.2.2"
+thiserror = "2.0.12"
+
+[dev-dependencies]
+criterion = "0.6.0"
+
+[[bench]]
+name = "base"
+harness = false

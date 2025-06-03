@@ -1,8 +1,8 @@
 use crate::{
-    TransactionType,
     error::{SoleanaError, SoleanaResult},
+    TransactionType,
 };
-use solana_message::{MessageHeader, v0::MessageAddressTableLookup};
+use solana_message::{v0::MessageAddressTableLookup, MessageHeader};
 use solana_sdk::{
     hash::Hash, instruction::CompiledInstruction, pubkey::Pubkey, signature::Signature,
 };
@@ -85,7 +85,7 @@ impl<'a> TxReader<'a> {
     }
 
     /// Read the type of the transaction
-    /// 
+    ///
     /// Only reads the next byte and moves the cursor forward if the byte is 0x80
     pub fn indicator_byte(&mut self) -> SoleanaResult<TransactionType> {
         match self.peek_u8()? {

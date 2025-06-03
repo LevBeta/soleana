@@ -1,5 +1,5 @@
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use input::InputWidget;
+use std::env;
 use ratatui::{
     prelude::*,
     symbols::border,
@@ -16,22 +16,28 @@ mod utils;
 use crate::transactions::TransactionWiget;
 
 fn main() -> std::io::Result<()> {
-    let mut terminal = ratatui::init();
-    let app_result = SoleanaTui::new().run(&mut terminal);
-    ratatui::restore();
-    app_result
+    let args: Vec<String> = env::args().collect();
+    if args.len() > 1 {
+        let mut terminal = ratatui::init();
+        let app_result = SoleanaTui::new(args[1].clone()).run(&mut terminal);
+        ratatui::restore();
+        app_result
+    } else {
+        println!("Usage: soleana-tui <transaction>");
+        Ok(())
+    }
 }
 
 #[derive(Debug, Default)]
 struct SoleanaTui {
-    rpc: String,
+    tx: String,
     exit: bool,
 }
 
 impl SoleanaTui {
-    pub fn new() -> Self {
+    pub fn new(tx: String) -> Self {
         Self {
-            rpc: "https://api.mainnet-beta.solana.com".to_string(),
+            tx,
             exit: false,
         }
     }
@@ -84,6 +90,6 @@ impl Widget for &SoleanaTui {
 
         block.render(area, buf);
 
-        TransactionWiget.render(area.inner(Margin::new(1, 1)), buf);
+        TransactionWiget::new(self.tx.clone()).render(area.inner(Margin::new(1, 1)), buf);
     }
 }

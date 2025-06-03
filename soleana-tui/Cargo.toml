@@ -16,4 +16,4 @@ crossterm = "0.29.0"
 ratatui = "0.29.0"
 solana-sdk = { workspace = true }
 solana-message = { workspace = true }
-soleana = { path = "../soleana" }
+soleana = { path = "../soleana", features = ["extended"]}

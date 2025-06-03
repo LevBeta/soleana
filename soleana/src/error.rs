@@ -15,4 +15,7 @@ pub enum SoleanaError {
 
     #[error("Invalid signature")]
     InvalidSignature,
+
+    #[error("Invalid instruction id")]
+    InvalidInstructionId,
 }

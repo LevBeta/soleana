@@ -42,6 +42,11 @@ impl<'a> TxReader<'a> {
         Ok(bytes[0])
     }
 
+    /// Read a single byte from the current cursor position without moving the cursor
+    pub fn peek_u8(&self) -> SoleanaResult<u8> {
+        Ok(self.bytes[self.cursor])
+    }
+
     fn read_compact_u16(&mut self) -> SoleanaResult<u16> {
         let mut value: u16 = 0;
         let mut shift: u8 = 0;
@@ -80,9 +85,14 @@ impl<'a> TxReader<'a> {
     }
 
     /// Read the type of the transaction
+    /// 
+    /// Only reads the next byte and moves the cursor forward if the byte is 0x80
     pub fn indicator_byte(&mut self) -> SoleanaResult<TransactionType> {
-        match self.read_u8()? {
-            0x80 => Ok(TransactionType::V0),
+        match self.peek_u8()? {
+            0x80 => {
+                self.read_u8()?;
+                Ok(TransactionType::V0)
+            }
             _ => Ok(TransactionType::Legacy),
         }
     }

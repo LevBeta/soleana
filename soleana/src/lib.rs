@@ -24,9 +24,11 @@ pub fn parse(transaction: &str) -> SoleanaResult<VersionedMessage> {
         .step_by(2)
         .map(|i| u8::from_str_radix(&transaction[i..i + 2], 16).unwrap())
         .collect();
-    let mut reader = TxReader::new(&binding);
-    let indicator_byte = reader.indicator_byte()?;
 
+
+    let mut reader = TxReader::new(&binding);
+    let _ = reader.read_signatures()?;
+    let indicator_byte = reader.indicator_byte()?;
     let message = match indicator_byte {
         TransactionType::V0 => {
             let header = reader.read_header()?;

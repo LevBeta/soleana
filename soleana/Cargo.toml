@@ -1,0 +1,24 @@
+[package]
+name = "soleana"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Soleana is a lightweight and lightning-fast Solana transaction parser."
+
+[dependencies]
+solana-message = { workspace = true }
+solana-sdk = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+criterion = "0.6.0"
+
+[[bench]]
+name = "base"
+harness = false

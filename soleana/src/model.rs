@@ -1,35 +1,46 @@
 use crate::{
-    error::SoleanaResult, instructions::parse_instruction, instructions::system::SystemInstruction,
+    error::SoleanaResult,
+    instructions::system::SystemInstructions,
+    instructions::{parse_instruction, Program},
 };
 use solana_message::MessageHeader;
 use solana_sdk::{instruction::CompiledInstruction, pubkey::Pubkey, signature::Signature};
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct ExtendedTransaction {
+pub struct ExtendedTransaction<P: Program> {
     pub signatures: Vec<Signature>,
     pub header: MessageHeader,
     pub accounts: Vec<Pubkey>,
-    pub instructions: Vec<ExtendedInstruction>,
+    pub instructions: Vec<ExtendedInstruction<P>>,
 }
 
-impl ExtendedTransaction {
-    pub fn instructions(&self) -> &Vec<ExtendedInstruction> {
+impl<P: Program> ExtendedTransaction<P> {
+    pub fn instructions(&self) -> &Vec<ExtendedInstruction<P>> {
         &self.instructions
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct ExtendedInstruction {
+pub struct ExtendedInstruction<P: Program> {
     pub raw: CompiledInstruction,
-    pub inner: Option<ExtendedInstructionInner>,
+    pub inner: Option<ExtendedInstructionInner<P>>,
 }
 
-impl ExtendedInstruction {
-    pub fn new(instruction: &CompiledInstruction, accounts: &Vec<Pubkey>) -> SoleanaResult<Self> {
-        let parsed_instruction = parse_instruction(instruction, accounts)?;
+impl<P: Program> ExtendedInstruction<P> {
+    pub fn new(
+        instruction: &CompiledInstruction,
+        accounts: &Vec<Pubkey>,
+        contracts: &Vec<P>,
+    ) -> SoleanaResult<Self> {
+        let parsed_instruction = parse_instruction(instruction, accounts, contracts)?;
 
         let inner = match parsed_instruction {
             Instruction::System(_) => Some(ExtendedInstructionInner {
+                program_pubkey: accounts[instruction.program_id_index as usize],
+                accounts: accounts.clone(),
+                instruction: parsed_instruction,
+            }),
+            Instruction::Program(_) => Some(ExtendedInstructionInner {
                 program_pubkey: accounts[instruction.program_id_index as usize],
                 accounts: accounts.clone(),
                 instruction: parsed_instruction,
@@ -47,7 +58,7 @@ impl ExtendedInstruction {
         self.inner.is_some()
     }
 
-    pub fn parsed_instruction(&self) -> Option<&ExtendedInstructionInner> {
+    pub fn parsed_instruction(&self) -> Option<&ExtendedInstructionInner<P>> {
         self.inner.as_ref()
     }
 
@@ -57,19 +68,20 @@ impl ExtendedInstruction {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum Instruction {
-    System(SystemInstruction),
+pub enum Instruction<P: Program> {
+    System(SystemInstructions),
+    Program(P::Instructions),
     Unknown,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct ExtendedInstructionInner {
+pub struct ExtendedInstructionInner<P: Program> {
     pub program_pubkey: Pubkey,
     pub accounts: Vec<Pubkey>,
-    pub instruction: Instruction,
+    pub instruction: Instruction<P>,
 }
 
-impl ExtendedInstructionInner {
+impl<P: Program> ExtendedInstructionInner<P> {
     pub fn program_pubkey(&self) -> &Pubkey {
         &self.program_pubkey
     }
@@ -78,7 +90,7 @@ impl ExtendedInstructionInner {
         &self.accounts
     }
 
-    pub fn instruction(&self) -> &Instruction {
+    pub fn instruction(&self) -> &Instruction<P> {
         &self.instruction
     }
 }

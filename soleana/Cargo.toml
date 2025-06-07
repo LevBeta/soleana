@@ -25,6 +25,11 @@ name = "extended"
 path = "examples/extended.rs"
 required-features = ["extended"]
 
+[[example]]
+name = "contract_impl"
+path = "examples/contract_impl.rs"
+required-features = ["extended"]
+
 [dependencies]
 solana-message = { workspace = true }
 solana-sdk = { workspace = true }

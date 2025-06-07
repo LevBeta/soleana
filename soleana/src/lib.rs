@@ -11,8 +11,7 @@ pub mod instructions;
 #[cfg(feature = "extended")]
 pub mod model;
 
-use crate::error::SoleanaResult;
-use crate::reader::TxReader;
+use crate::{error::SoleanaResult, reader::TxReader};
 
 #[cfg(feature = "extended")]
 use crate::model::ExtendedTransaction;
@@ -29,7 +28,10 @@ pub(crate) enum TransactionType {
 }
 
 #[cfg(feature = "extended")]
-pub fn extended_parse(transaction: &str) -> SoleanaResult<ExtendedTransaction> {
+pub fn extended_parse<P: crate::instructions::Program>(
+    transaction: &str,
+    contracts: &Vec<P>,
+) -> SoleanaResult<ExtendedTransaction<P>> {
     let binding: Vec<u8> = (0..transaction.len())
         .step_by(2)
         .map(|i| u8::from_str_radix(&transaction[i..i + 2], 16).unwrap())
@@ -39,16 +41,35 @@ pub fn extended_parse(transaction: &str) -> SoleanaResult<ExtendedTransaction> {
     let signatures = reader.read_signatures()?;
     let indicator_byte = reader.indicator_byte()?;
     let message = match indicator_byte {
-        TransactionType::V0 => todo!(),
-        TransactionType::Legacy => {
+        TransactionType::V0 => {
             let header = reader.read_header()?;
             let accounts = reader.read_accounts()?;
             let hash = reader.read_hash()?;
             let instructions = reader.read_instructions()?;
+            let extended_instructions = instructions
+                .iter()
+                .map(|instruction| {
+                    model::ExtendedInstruction::new(instruction, &accounts, &contracts).unwrap()
+                })
+                .collect();
+            Ok(ExtendedTransaction {
+                signatures,
+                header,
+                accounts,
+                instructions: extended_instructions,
+            })
+        }
+        TransactionType::Legacy => {
+            let header = reader.read_header()?;
+            let accounts = reader.read_accounts()?;
+            let _ = reader.read_hash()?;
+            let instructions = reader.read_instructions()?;
             println!("instructions: {:?}", instructions);
             let extended_instructions = instructions
                 .iter()
-                .map(|instruction| model::ExtendedInstruction::new(instruction, &accounts).unwrap())
+                .map(|instruction| {
+                    model::ExtendedInstruction::new(instruction, &accounts, &contracts).unwrap()
+                })
                 .collect();
             Ok(ExtendedTransaction {
                 signatures,

@@ -11,9 +11,11 @@ keywords.workspace = true
 categories.workspace = true
 description = "Soleana is a lightweight and lightning-fast Solana transaction parser."
 
-[features]
-
 [dependencies]
 
 [dev-dependencies]
 criterion = "0.6.0"
+
+[[bench]]
+name = "basic"
+harness = false

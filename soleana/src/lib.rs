@@ -1,126 +1,102 @@
-/// Error module
-pub mod error;
-
-/// Reader module
+/// Reader module implements the logic to read a buffer of bytes.
 pub mod reader;
 
-/// Instructions module
-#[cfg(feature = "extended")]
-pub mod instructions;
+/// Error module implements the error types for the library.
+pub mod error;
 
-#[cfg(feature = "extended")]
-pub mod model;
+/// Types module implements the types for the library.
+pub mod types;
 
-use crate::{error::SoleanaResult, reader::TxReader};
+/// Programs module implements the logic to parse various programs.
+pub mod programs;
 
-#[cfg(feature = "extended")]
-use crate::model::ExtendedTransaction;
+/// Registry module implements the logic to register programs.
+pub(crate) mod registry;
 
-use solana_message::{
-    legacy::Message as LegacyMessage, v0::Message as V0Message, VersionedMessage,
+/// Prelude module implements the prelude for the library.
+pub mod prelude;
+
+/// TransactionsParser module implements the logic to parse transactions.
+use crate::{
+    error::SoleanaResult,
+    programs::{system::System, Program, ProgramInstructions},
+    reader::Reader,
+    types::Indicator,
 };
 
-/// Type of a transaction
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum TransactionType {
-    V0,
-    Legacy,
+/// [`TransactionsParser`] is a struct that uses a [`Reader`] to parse transactions.
+///
+/// This struct is used so we can pass various `Program`'s to the parser only once, and then parse various transactions.
+pub struct TransactionsParser<'a> {
+    pub(crate) reader: Reader<'a>,
 }
 
-#[cfg(feature = "extended")]
-pub fn extended_parse<P: crate::instructions::Program>(
-    transaction: &str,
-    contracts: &Vec<P>,
-) -> SoleanaResult<ExtendedTransaction<P>> {
-    let binding: Vec<u8> = (0..transaction.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&transaction[i..i + 2], 16).unwrap())
-        .collect();
+impl<'a> TransactionsParser<'a> {
+    /// Creates a new [`TransactionsParser`] from a buffer of bytes.
+    pub fn new() -> Self {
+        registry::register_program::<System>();
 
-    let mut reader = TxReader::new(&binding);
-    let signatures = reader.read_signatures()?;
-    let indicator_byte = reader.indicator_byte()?;
-    let message = match indicator_byte {
-        TransactionType::V0 => {
-            let header = reader.read_header()?;
-            let accounts = reader.read_accounts()?;
-            let hash = reader.read_hash()?;
-            let instructions = reader.read_instructions()?;
-            let extended_instructions = instructions
-                .iter()
-                .map(|instruction| {
-                    model::ExtendedInstruction::new(instruction, &accounts, &contracts).unwrap()
-                })
-                .collect();
-            Ok(ExtendedTransaction {
-                signatures,
-                header,
-                accounts,
-                instructions: extended_instructions,
-            })
+        Self {
+            reader: Reader::new_empty(),
         }
-        TransactionType::Legacy => {
-            let header = reader.read_header()?;
-            let accounts = reader.read_accounts()?;
-            let _ = reader.read_hash()?;
-            let instructions = reader.read_instructions()?;
-            println!("instructions: {:?}", instructions);
-            let extended_instructions = instructions
-                .iter()
-                .map(|instruction| {
-                    model::ExtendedInstruction::new(instruction, &accounts, &contracts).unwrap()
-                })
-                .collect();
-            Ok(ExtendedTransaction {
-                signatures,
-                header,
-                accounts,
-                instructions: extended_instructions,
-            })
-        }
-    };
+    }
 
-    Ok(message?)
+    pub fn check_programs(&self) {
+        println!("{:?}", registry::registry().read().unwrap());
+    }
+
+    /// Registers a program to the parser.
+    pub fn register_program<P: Program>(&self)
+    where
+        P::Instructions: ProgramInstructions + 'static,
+    {
+        registry::register_program::<P>();
+    }
+
+    /// Parses a transaction from a hex string.
+    ///
+    /// TODO: This should either accept a &'a str or a &'a [u8]
+    pub fn parse_transaction(&mut self, transaction: &'a str) -> SoleanaResult<types::Transaction> {
+        self.reader.set_bytes_from_str(transaction)?;
+
+        let signatures = self.reader.read_signatures()?;
+        let indicator = self.reader.indicator()?;
+        let header = self.reader.read_header()?;
+        let accounts = self.reader.read_accounts()?;
+        let hash = self.reader.read_hash()?;
+        let instructions = self
+            .reader
+            .read_instructions(&accounts, &registry::registry().read().unwrap())?;
+
+        let luts: Option<Vec<crate::types::LUT>> = match indicator {
+            Indicator::Legacy => None,
+            Indicator::V0 => {
+                let luts = self.reader.read_luts(&accounts)?;
+                Some(luts)
+            }
+        };
+
+        let transaction = types::Transaction {
+            transaction_type: indicator,
+            signatures,
+            header,
+            hash,
+            instructions,
+            luts,
+        };
+
+        Ok(transaction)
+    }
 }
 
-/// Parse a transaction into a VersionedMessage
-pub fn parse(transaction: &str) -> SoleanaResult<VersionedMessage> {
-    let binding: Vec<u8> = (0..transaction.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&transaction[i..i + 2], 16).unwrap())
-        .collect();
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let mut reader = TxReader::new(&binding);
-    let _ = reader.read_signatures()?;
-    let indicator_byte = reader.indicator_byte()?;
-    let message = match indicator_byte {
-        TransactionType::V0 => {
-            let header = reader.read_header()?;
-            let accounts = reader.read_accounts()?;
-            let hash = reader.read_hash()?;
-            let instructions = reader.read_instructions()?;
-            let luts = reader.read_luts()?;
-            Ok(VersionedMessage::V0(V0Message {
-                header: header,
-                account_keys: accounts,
-                recent_blockhash: hash,
-                instructions: instructions,
-                address_table_lookups: luts,
-            }))
-        }
-        TransactionType::Legacy => {
-            let header = reader.read_header()?;
-            let accounts = reader.read_accounts()?;
-            let hash = reader.read_hash()?;
-            let instructions = reader.read_instructions()?;
-            Ok(VersionedMessage::Legacy(LegacyMessage {
-                header: header,
-                account_keys: accounts,
-                recent_blockhash: hash,
-                instructions: instructions,
-            }))
-        }
-    };
-
-    Ok(message?)
+    #[test]
+    fn test_parse_transaction() {
+        let mut parser = TransactionsParser::new();
+        let transaction = parser.parse_transaction("01c79cc65469fdfcc8fb10150150e33c73220b976162999d1e38a81176de3aaf90af7f39eacbd261932badd65c3551cdac3f1e60585e2c92e3b52f117bac35750680010002040e7698886e86cd5f4faf3ab562b70f97736ffd2c62eaa7bfe194a2021a82d97cbf971b59108b5b85a04fb093f1e21b4e3fd4c4c8f487dd09b95752769f0dd8c300000000000000000000000000000000000000000000000000000000000000000306466fe5211732ffecadba72c39be7bc8ce5bbc5f7126b2c439b3a400000000124ad783cd3b62be732496acc325d8337e80f1fa06d278a9b534f28fe60a4740203000502e8030000020200010c02000000401f00000000000000");
+        println!("{:?}", transaction.unwrap());
+    }
 }

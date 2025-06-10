@@ -11,33 +11,12 @@ keywords.workspace = true
 categories.workspace = true
 description = "Soleana is a lightweight and lightning-fast Solana transaction parser."
 
-[features]
-extended = []
-
-
-[[example]]
-name = "basic"
-path = "examples/basic.rs"
-required-features = []
-
-[[example]]
-name = "extended"
-path = "examples/extended.rs"
-required-features = ["extended"]
-
-[[example]]
-name = "contract_impl"
-path = "examples/contract_impl.rs"
-required-features = ["extended"]
 
 [dependencies]
-solana-message = { workspace = true }
-solana-sdk = { workspace = true }
-thiserror = { workspace = true }
 
 [dev-dependencies]
 criterion = "0.6.0"
 
 [[bench]]
-name = "base"
+name = "basic"
 harness = false

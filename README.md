@@ -1,6 +1,6 @@
 # 🌊 Soleana
 
-**Soleana** is a lightweight, lightning-fast parser for [Solana](https://solana.com) transactions, written in Rust. It efficiently decodes raw transaction data into structured, human-readable formats—perfect for explorers, indexers, or blockchain tools.
+**Soleana** is a lightweight, lightning-fast and **dependency-free** parser for [Solana](https://solana.com) transactions, written in Rust. It efficiently decodes raw transaction data into structured, human-readable formats—perfect for explorers, indexers, or blockchain tools.
 
 ---
 ## Usage/Examples

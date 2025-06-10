@@ -1,8 +1,9 @@
 use crate::{
     error::{SoleanaError, SoleanaResult},
     types::{Hash, Header, Indicator, Instruction, Pubkey, Signature, LUT},
+    programs::ProgramInstructions,
 };
-use std::borrow::Cow;
+use std::{borrow::Cow, collections::HashMap};
 
 pub struct Reader<'a> {
     bytes: Cow<'a, [u8]>,
@@ -26,13 +27,6 @@ impl<'a> Reader<'a> {
             bytes: Cow::Borrowed(&[]),
             cursor: 0,
         }
-    }
-
-    /// Resets the reader to a "empty" state.
-    #[inline]
-    pub(crate) fn reset(&mut self) {
-        self.cursor = 0;
-        self.bytes = Cow::Borrowed(&[]);
     }
 
     /// Set the reader to a new buffer of bytes.
@@ -179,23 +173,31 @@ impl<'a> Reader<'a> {
     pub(crate) fn read_instructions(
         &mut self,
         accounts: &[Pubkey],
+        programs: &HashMap<Pubkey, crate::registry::ParserFn>,
     ) -> SoleanaResult<Vec<Instruction>> {
         (0..self.read_byte()? as usize)
             .map(|_| {
-                let index = self.read_byte()?;
-                let ix_accounts = self.read_compact_array()?;
+                let program_id = accounts[self.read_byte()? as usize];
+                let _ = self.read_compact_array()?;
                 let data = self.read_compact_array()?;
 
+                let parsed: Option<Box<dyn ProgramInstructions + 'static>> = if let Some(parser) = programs.get(&program_id) {
+                    let instruction = parser(program_id, &accounts, &data)?;
+                    Some(instruction)
+                } else {
+                    None
+                };
+
                 Ok(Instruction {
-                    program_id: accounts[index as usize],
-                    accounts: ix_accounts.iter().map(|&i| accounts[i as usize]).collect(),
-                    raw_data: data,
+                    program_id,
+                    parsed,
+                    raw: data,
                 })
             })
             .collect()
     }
 
-    pub(crate) fn read_luts(&mut self, accounts: &[Pubkey]) -> SoleanaResult<Vec<LUT>> {
+    pub(crate) fn read_luts(&mut self, _: &[Pubkey]) -> SoleanaResult<Vec<LUT>> {
         (0..self.read_byte()? as usize)
             .map(|_| {
                 let pk: Pubkey = self
@@ -207,14 +209,8 @@ impl<'a> Reader<'a> {
 
                 Ok(LUT {
                     account_key: pk,
-                    writable_accounts: writable_indexes
-                        .iter()
-                        .map(|&i| accounts[i as usize])
-                        .collect(),
-                    readonly_accounts: readonly_indexes
-                        .iter()
-                        .map(|&i| accounts[i as usize])
-                        .collect(),
+                    writable_accounts: writable_indexes,
+                    readonly_accounts: readonly_indexes,
                 })
             })
             .collect()

@@ -1,16 +1,28 @@
 /// Reader module implements the logic to read a buffer of bytes.
 pub mod reader;
 
-/// Program module implements the logic to parse instructions.
-pub mod program;
-
 /// Error module implements the error types for the library.
 pub mod error;
 
 /// Types module implements the types for the library.
 pub mod types;
 
-use crate::{error::SoleanaResult, reader::Reader, types::Indicator};
+/// Programs module implements the logic to parse various programs.
+pub mod programs;
+
+/// Registry module implements the logic to register programs.
+pub(crate) mod registry;
+
+/// Prelude module implements the prelude for the library.
+pub mod prelude;
+
+/// TransactionsParser module implements the logic to parse transactions.
+use crate::{
+    error::SoleanaResult,
+    programs::{system::System, Program, ProgramInstructions},
+    reader::Reader,
+    types::Indicator,
+};
 
 /// [`TransactionsParser`] is a struct that uses a [`Reader`] to parse transactions.
 ///
@@ -22,9 +34,23 @@ pub struct TransactionsParser<'a> {
 impl<'a> TransactionsParser<'a> {
     /// Creates a new [`TransactionsParser`] from a buffer of bytes.
     pub fn new() -> Self {
+        registry::register_program::<System>();
+
         Self {
             reader: Reader::new_empty(),
         }
+    }
+
+    pub fn check_programs(&self) {
+        println!("{:?}", registry::registry().read().unwrap());
+    }
+
+    /// Registers a program to the parser.
+    pub fn register_program<P: Program>(&self)
+    where
+        P::Instructions: ProgramInstructions + 'static,
+    {
+        registry::register_program::<P>();
     }
 
     /// Parses a transaction from a hex string.
@@ -38,7 +64,9 @@ impl<'a> TransactionsParser<'a> {
         let header = self.reader.read_header()?;
         let accounts = self.reader.read_accounts()?;
         let hash = self.reader.read_hash()?;
-        let instructions = self.reader.read_instructions(&accounts)?;
+        let instructions = self
+            .reader
+            .read_instructions(&accounts, &registry::registry().read().unwrap())?;
 
         let luts: Option<Vec<crate::types::LUT>> = match indicator {
             Indicator::Legacy => None,

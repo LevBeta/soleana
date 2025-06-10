@@ -5,4 +5,6 @@ pub enum SoleanaError {
     InvalidHexString,
     NotEnoughBytes,
     CompactU16Overflow,
+
+    InvalidInstruction,
 }

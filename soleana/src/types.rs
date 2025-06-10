@@ -1,3 +1,5 @@
+use crate::programs::ProgramInstructions;
+
 /// Equivalent to the `Pubkey` from the solana-pubkey. <https://docs.rs/solana-pubkey/latest/solana_pubkey/struct.Pubkey.html>
 pub type Pubkey = [u8; 32];
 
@@ -15,8 +17,9 @@ pub struct Instruction {
     /// The program ID of the instruction.
     pub program_id: Pubkey,
 
-    pub accounts: Vec<Pubkey>,
-    pub raw_data: Vec<u8>,
+    pub parsed: Option<Box<dyn ProgramInstructions>>,
+
+    pub raw: Vec<u8>,
 }
 
 /// Equivalent to the `MessageHeader` from the solana-message. <https://docs.rs/solana-message/latest/solana_message/struct.MessageHeader.html>
@@ -40,8 +43,8 @@ pub enum Indicator {
 #[derive(Debug)]
 pub struct LUT {
     pub account_key: Pubkey,
-    pub writable_accounts: Vec<Pubkey>,
-    pub readonly_accounts: Vec<Pubkey>,
+    pub writable_accounts: Vec<u8>,
+    pub readonly_accounts: Vec<u8>,
 }
 
 #[derive(Debug)]

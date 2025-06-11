@@ -1,9 +1,8 @@
 use crate::{
     error::{SoleanaError, SoleanaResult},
-    types::{Hash, Header, Indicator, Instruction, Pubkey, Signature, LUT},
-    programs::ProgramInstructions,
+    types::{Hash, Header, Indicator, Pubkey, Signature, LUT},
 };
-use std::{borrow::Cow, collections::HashMap};
+use std::borrow::Cow;
 
 pub struct Reader<'a> {
     bytes: Cow<'a, [u8]>,
@@ -170,49 +169,57 @@ impl<'a> Reader<'a> {
     }
 
     /// Reads the instructions from the buffer.
+    ///
+    /// We don't parse them at this point, we actually wait to read the lut's
+    /// before we parse them, since there is accounts there we will need
+    /// to parse the instructions.
     pub(crate) fn read_instructions(
         &mut self,
         accounts: &[Pubkey],
-        programs: &HashMap<Pubkey, crate::registry::ParserFn>,
-    ) -> SoleanaResult<Vec<Instruction>> {
+    ) -> SoleanaResult<Vec<(Pubkey, Vec<u8>, Vec<u8>)>> {
         (0..self.read_byte()? as usize)
             .map(|_| {
                 let program_id = accounts[self.read_byte()? as usize];
-                let _ = self.read_compact_array()?;
+                let ix_acc = self.read_compact_array()?;
                 let data = self.read_compact_array()?;
-
-                let parsed: Option<Box<dyn ProgramInstructions + 'static>> = if let Some(parser) = programs.get(&program_id) {
-                    let instruction = parser(program_id, &accounts, &data)?;
-                    Some(instruction)
-                } else {
-                    None
-                };
-
-                Ok(Instruction {
-                    program_id,
-                    parsed,
-                    raw: data,
-                })
+                Ok((program_id, ix_acc, data))
             })
             .collect()
     }
 
-    pub(crate) fn read_luts(&mut self, _: &[Pubkey]) -> SoleanaResult<Vec<LUT>> {
-        (0..self.read_byte()? as usize)
+    /// Reads the LUTs from the buffer and extends the provided accounts vector with writable and readonly accounts.
+    pub(crate) fn read_luts(&mut self, accounts: &mut Vec<Pubkey>) -> SoleanaResult<Vec<LUT>> {
+        let mut writable_accounts = Vec::new();
+        let mut readonly_accounts = Vec::new();
+
+        let registry = crate::registry::registry().read().unwrap();
+
+        let luts = (0..self.read_byte()? as usize)
             .map(|_| {
-                let pk: Pubkey = self
-                    .read_bytes(32)?
+                let pk_bytes = self.read_bytes(32)?;
+                let pk: Pubkey = pk_bytes
                     .try_into()
                     .map_err(|_| SoleanaError::NotEnoughBytes)?;
+
                 let writable_indexes = self.read_compact_array()?;
                 let readonly_indexes = self.read_compact_array()?;
 
+                if let Some(lut) = registry.luts.get(&pk) {
+                    writable_accounts.extend(writable_indexes.iter().map(|&i| lut[i as usize]));
+                    readonly_accounts.extend(readonly_indexes.iter().map(|&i| lut[i as usize]));
+                }
+
                 Ok(LUT {
                     account_key: pk,
-                    writable_accounts: writable_indexes,
-                    readonly_accounts: readonly_indexes,
+                    writable_indexes,
+                    readonly_indexes,
                 })
             })
-            .collect()
+            .collect::<SoleanaResult<Vec<LUT>>>()?;
+
+        accounts.extend(writable_accounts);
+        accounts.extend(readonly_accounts);
+
+        Ok(luts)
     }
 }

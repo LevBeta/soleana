@@ -16,6 +16,8 @@ description = "Soleana is a lightweight and lightning-fast Solana transaction pa
 
 [dev-dependencies]
 criterion = "0.6.0"
+solana-client = "2.2.1"
+solana-pubkey = "2.2.1"
 
 [[bench]]
 name = "basic"

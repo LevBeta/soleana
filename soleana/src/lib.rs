@@ -21,8 +21,10 @@ use crate::{
     error::SoleanaResult,
     programs::{system::System, Program, ProgramInstructions},
     reader::Reader,
-    types::Indicator,
+    types::{Indicator, Instruction, Pubkey},
 };
+
+use std::collections::HashMap;
 
 /// [`TransactionsParser`] is a struct that uses a [`Reader`] to parse transactions.
 ///
@@ -41,16 +43,66 @@ impl<'a> TransactionsParser<'a> {
         }
     }
 
-    pub fn check_programs(&self) {
-        println!("{:?}", registry::registry().read().unwrap());
-    }
-
     /// Registers a program to the parser.
     pub fn register_program<P: Program>(&self)
     where
         P::Instructions: ProgramInstructions + 'static,
     {
         registry::register_program::<P>();
+    }
+
+    /// Registers a lut to the parser.
+    pub fn register_lut<T: Into<crate::types::CompleteAddressLookupTable>>(&self, lut: T) {
+        registry::register_lut(lut.into());
+    }
+
+    /// Registers a lut fetch function to the parser.
+    pub fn register_lut_fetch_fn<F, R>(&self, fetch_fn: F)
+    where
+        F: Fn(&[u8; 32]) -> R + Send + Sync + 'static,
+        R: Into<crate::types::CompleteAddressLookupTable>,
+    {
+        let mut registry = registry::registry().write().unwrap();
+        registry.lut_fetch_fn = Some(Box::new(move |key| fetch_fn(key).into()));
+    }
+
+    /// Fetches a lut from the fetch function and registers it to the parser.
+    pub fn fetch_and_register_lut(&self, lut_account: Pubkey) -> SoleanaResult<()> {
+        let registry = registry::registry().read().unwrap();
+
+        let fetch_fn = registry
+            .lut_fetch_fn
+            .as_ref()
+            .ok_or_else(|| crate::error::SoleanaError::NoLutFetchFnRegistered)?;
+
+        self.register_lut((fetch_fn)(&lut_account));
+
+        Ok(())
+    }
+
+    fn parse_instructions(
+        &self,
+        instructions: Vec<(Pubkey, Vec<u8>, Vec<u8>)>,
+        accounts: &[Pubkey],
+        programs: &HashMap<Pubkey, crate::registry::ParserFn>,
+    ) -> SoleanaResult<Vec<Instruction>> {
+        instructions
+            .iter()
+            .map(|(program_id, ix_acc, data)| {
+                let parsed: Option<Box<dyn ProgramInstructions + 'static>> =
+                    if let Some(parser) = programs.get(program_id) {
+                        let instruction = parser(*program_id, ix_acc, data, accounts)?;
+                        Some(instruction)
+                    } else {
+                        None
+                    };
+                Ok(Instruction {
+                    program_id: *program_id,
+                    parsed,
+                    raw: data.clone(),
+                })
+            })
+            .collect()
     }
 
     /// Parses a transaction from a hex string.
@@ -62,19 +114,20 @@ impl<'a> TransactionsParser<'a> {
         let signatures = self.reader.read_signatures()?;
         let indicator = self.reader.indicator()?;
         let header = self.reader.read_header()?;
-        let accounts = self.reader.read_accounts()?;
+        let mut accounts = self.reader.read_accounts()?;
         let hash = self.reader.read_hash()?;
-        let instructions = self
-            .reader
-            .read_instructions(&accounts, &registry::registry().read().unwrap())?;
+        let instructions = self.reader.read_instructions(&accounts)?;
 
         let luts: Option<Vec<crate::types::LUT>> = match indicator {
             Indicator::Legacy => None,
-            Indicator::V0 => {
-                let luts = self.reader.read_luts(&accounts)?;
-                Some(luts)
-            }
+            Indicator::V0 => Some(self.reader.read_luts(&mut accounts)?),
         };
+
+        let instructions = self.parse_instructions(
+            instructions,
+            &accounts,
+            &registry::registry().read().unwrap().programs,
+        )?;
 
         let transaction = types::Transaction {
             transaction_type: indicator,

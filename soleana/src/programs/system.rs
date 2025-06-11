@@ -11,8 +11,9 @@ impl Program for System {
 
     fn parse_instruction(
         _: Pubkey,
-        _: &[Pubkey],
+        _: &Vec<u8>,
         data: &[u8],
+        _: &[Pubkey],
     ) -> SoleanaResult<Self::Instructions> {
         match data[0..4].to_vec()[..] {
             [0x02, 0x00, 0x00, 0x00] => {
@@ -24,6 +25,7 @@ impl Program for System {
     }
 }
 
+/// Enum of all the instructions that can be given by the system program (Those who are implemented).
 #[derive(Debug)]
 pub enum SystemInstructions {
     Transfer { lamports: u64 },

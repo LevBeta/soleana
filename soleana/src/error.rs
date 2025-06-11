@@ -7,4 +7,6 @@ pub enum SoleanaError {
     CompactU16Overflow,
 
     InvalidInstruction,
+
+    NoLutFetchFnRegistered,
 }

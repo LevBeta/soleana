@@ -43,8 +43,23 @@ pub enum Indicator {
 #[derive(Debug)]
 pub struct LUT {
     pub account_key: Pubkey,
-    pub writable_accounts: Vec<u8>,
-    pub readonly_accounts: Vec<u8>,
+    pub writable_indexes: Vec<u8>,
+    pub readonly_indexes: Vec<u8>,
+}
+
+#[derive(Debug)]
+pub struct CompleteAddressLookupTable {
+    pub account_key: Pubkey,
+    pub accounts: Vec<Pubkey>,
+}
+
+impl From<(Pubkey, Vec<Pubkey>)> for CompleteAddressLookupTable {
+    fn from(value: (Pubkey, Vec<Pubkey>)) -> Self {
+        Self {
+            account_key: value.0,
+            accounts: value.1,
+        }
+    }
 }
 
 #[derive(Debug)]

@@ -19,7 +19,7 @@ pub mod prelude;
 /// TransactionsParser module implements the logic to parse transactions.
 use crate::{
     error::SoleanaResult,
-    programs::{system::System, Program, ProgramInstructions},
+    programs::{compute_budget::ComputeBudget, system::System, Program, ProgramInstructions},
     reader::Reader,
     types::{Indicator, Instruction, Pubkey},
 };
@@ -37,6 +37,7 @@ impl<'a> TransactionsParser<'a> {
     /// Creates a new [`TransactionsParser`] from a buffer of bytes.
     pub fn new() -> Self {
         registry::register_program::<System>();
+        registry::register_program::<ComputeBudget>();
 
         Self {
             reader: Reader::new_empty(),

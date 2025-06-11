@@ -1,6 +1,10 @@
 use crate::{error::SoleanaResult, types::Pubkey};
 
+/// System program.
 pub mod system;
+
+/// Compute budget program.
+pub mod compute_budget;
 
 /// A trait for programs that can be parsed by the parser.
 pub trait Program {
@@ -32,6 +36,8 @@ pub trait ProgramInstructions: std::fmt::Debug {}
 pub enum Instructions {
     /// System instructions.
     System(system::SystemInstructions),
+    /// Compute budget instructions.
+    ComputeBudget(compute_budget::ComputeBudgetInstructions),
     /// User defined Program instructions.
     Program(Box<dyn ProgramInstructions>),
 }
